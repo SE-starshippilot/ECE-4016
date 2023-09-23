@@ -10,7 +10,7 @@ ROOT_DNS_SERVER = '198.41.0.4'  # Root DNS A
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--mode', type=int, default=1, choices=[0, 1], help='Server Mode, 0 for query public server; 1 for iterative query')
+    parser.add_argument('-f', '--flag', type=int, default=1, choices=[0, 1], help='Server Mode, 0 for query public server; 1 for iterative query')
     return parser.parse_args()
 
 def print_passed_servers(passed_server:list):
@@ -35,9 +35,9 @@ def try_send_request(request, server_name, trials=10):
             trial += 1
             time.sleep(timeout)
 
-def get_ip_from_url(domain_name:str, mode:int):
+def get_ip_from_url(domain_name:str, flag:int):
     global passed_server
-    server_name = ROOT_DNS_SERVER if mode==1 else PUBLIC_DNS_SERVER
+    server_name = ROOT_DNS_SERVER if flag==1 else PUBLIC_DNS_SERVER
     server_ip = server_name
     while True:
         request = DNSRecord.question(domain_name)
@@ -49,7 +49,7 @@ def get_ip_from_url(domain_name:str, mode:int):
             if _server_ip: 
                 server_ip = _server_ip
             else:
-                get_ip_from_url(server_name, mode)
+                get_ip_from_url(server_name, flag)
         if (reply.rr != []):
             reply_rr = (reply.rr).copy()
             _cname_rr = None # usually there won't be two cname records
@@ -61,7 +61,7 @@ def get_ip_from_url(domain_name:str, mode:int):
                     is_cname = False
                     break
             if is_cname:
-                _reply = get_ip_from_url(str(_cname_rr.rdata), mode)
+                _reply = get_ip_from_url(str(_cname_rr.rdata), flag)
                 reply.rr += _reply.rr
             return reply
 
@@ -77,7 +77,7 @@ def main(args):
             final_msg = query.reply()
             final_msg.rr = cache[query_url]
         else:
-            reply = get_ip_from_url(query_url, args.mode)
+            reply = get_ip_from_url(query_url, args.flag)
             final_msg = query.reply()
             final_msg.rr = reply.rr
             cache[query_url] = final_msg.rr
