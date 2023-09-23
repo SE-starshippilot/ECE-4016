@@ -27,7 +27,7 @@ def get_nameserver_info(reply:DNSRecord.reply):
 
 def try_send_request(request, server_name, trials=10):
     trial = 0
-    timeout = 0.2
+    timeout = 0.5
     while trial < trials:
         try:
             return request.send(server_name, timeout=timeout)
