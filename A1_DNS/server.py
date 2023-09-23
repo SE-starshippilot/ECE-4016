@@ -1,3 +1,4 @@
+import time
 import socket
 import argparse
 from dnslib import DNSRecord, QTYPE
@@ -24,13 +25,15 @@ def get_nameserver_info(reply:DNSRecord.reply):
             return str(ar.rname), str(ar.rdata)
     return str(reply.auth[0].rdata), None
 
-def try_send_request(request, server_name, trials=3):
+def try_send_request(request, server_name, trials=10):
     trial = 0
+    timeout = 0.2
     while trial < trials:
         try:
-            return request.send(server_name, timeout=1)
+            return request.send(server_name, timeout=timeout)
         except socket.timeout:
             trial += 1
+            time.sleep(timeout)
 
 def get_ip_from_url(domain_name:str, mode:int):
     global passed_server
@@ -49,7 +52,7 @@ def get_ip_from_url(domain_name:str, mode:int):
                 get_ip_from_url(server_name, mode)
         if (reply.rr != []):
             reply_rr = (reply.rr).copy()
-            _cname_rr = None
+            _cname_rr = None # usually there won't be two cname records
             is_cname = True
             for rr in reply_rr:
                 if rr.rtype == QTYPE.CNAME:
@@ -60,8 +63,7 @@ def get_ip_from_url(domain_name:str, mode:int):
             if is_cname:
                 _reply = get_ip_from_url(str(_cname_rr.rdata), mode)
                 reply.rr += _reply.rr
-            break
-    return reply
+            return reply
 
 def main(args):
     global passed_server
