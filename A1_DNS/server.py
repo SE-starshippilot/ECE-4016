@@ -6,7 +6,6 @@ LOCAL_DNS_SERVER = '127.0.0.1'
 LOCAL_DNS_PORT = 1234
 PUBLIC_DNS_SERVER = '223.5.5.5' # AliDNS
 ROOT_DNS_SERVER = '198.41.0.4'  # Root DNS A
-REMOTE_DNS_PORT = 53            # DNS default port
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -19,18 +18,16 @@ def print_passed_servers(passed_server:list):
         print(f'#{idx}: {ps}')
     print('='*20)
 
-def get_ip_from_rr(rr_records:RR):
-    cname = None
-    for rr in rr_records:
-        if rr.rtype == QTYPE.A:
-            return str(rr.rdata)
-        elif rr.rtype == QTYPE.CNAME:
-            cname = str(rr.rdata)
-    return get_ip_from_url(cname)
+def get_nameserver_info(reply:DNSRecord.reply):
+    for ar in reply.ar:
+        if ar.rtype == QTYPE.A:
+            return str(ar.rname), str(ar.rdata)
+    return str(reply.auth[0].rdata), None
 
-def get_ip_from_url(domain_name:str):
+def get_ip_from_url(domain_name:str, mode=1):
     global passed_server
     domains = domain_name.split('.')
+    server_name = ROOT_DNS_SERVER 
     server_ip = ROOT_DNS_SERVER
     query_domain = ''   # query domain name
     for domain in domains[::-1]:
@@ -38,13 +35,14 @@ def get_ip_from_url(domain_name:str):
         query_domain = f'{domain}.' + query_domain
         request = DNSRecord.question(query_domain)
         passed_server.append(server_ip)
-        raw_reply = request.send(server_ip)
+        raw_reply = request.send(server_name)
         reply = DNSRecord.parse(raw_reply)
         if (reply.auth != []):
-            if (reply.ar != []):
-                server_ip = str(reply.ar[0].rdata)
+            server_name, _server_ip = get_nameserver_info(reply)
+            if _server_ip: 
+                server_ip = _server_ip
             else:
-                get_ip_from_url(str(reply.auth[0].rdata))
+                get_ip_from_url(server_name)
         if ((reply.auth == []) and (reply.rr != [])):
             reply_rr = (reply.rr).copy()
             for rr in reply_rr:
@@ -56,9 +54,6 @@ def get_ip_from_url(domain_name:str):
 
 def main(args):
     global passed_server
-    client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    client_sock.bind((LOCAL_DNS_SERVER, LOCAL_DNS_PORT))
-    print(f"DNS server is listening on {LOCAL_DNS_SERVER}:{LOCAL_DNS_PORT}")
     cache = {}
     while True:
         data, addr = client_sock.recvfrom(1024)
@@ -80,10 +75,16 @@ def main(args):
         print_passed_servers(passed_server)
         passed_server = []
         client_sock.sendto(final_msg.pack(), addr)
-    # client_sock.close()
-
 
 if __name__ == '__main__':
     passed_server = []
     args = parse_args()
-    main(args)
+    client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    client_sock.bind((LOCAL_DNS_SERVER, LOCAL_DNS_PORT))
+    print(f"DNS server is listening on {LOCAL_DNS_SERVER}:{LOCAL_DNS_PORT}")
+    try:
+        main(args)
+    except KeyboardInterrupt:
+        print('\nServer is closed')
+    finally:
+        client_sock.close()
