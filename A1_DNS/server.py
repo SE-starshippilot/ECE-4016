@@ -1,3 +1,4 @@
+import time
 import socket
 import argparse
 from dnslib import DNSRecord, QTYPE
@@ -24,28 +25,45 @@ def get_nameserver_info(reply:DNSRecord.reply):
             return str(ar.rname), str(ar.rdata)
     return str(reply.auth[0].rdata), None
 
-def get_ip_from_url(domain_name:str, mode=1):
+def try_send_request(request, server_name, trials=3):
+    trial = 0
+    while trial < trials:
+        try:
+            return request.send(server_name, timeout=1)
+        except socket.timeout:
+            trial += 1
+            print(f'[TIMEOUT ({trial}/{trials})]')
+
+def get_ip_from_url(domain_name:str, mode:int):
     global passed_server
-    server_name = ROOT_DNS_SERVER 
-    server_ip = ROOT_DNS_SERVER
+    server_name = ROOT_DNS_SERVER if mode==1 else PUBLIC_DNS_SERVER
+    server_ip = server_name
     while True:
         request = DNSRecord.question(domain_name)
         passed_server.append(server_ip)
-        raw_reply = request.send(server_name)
+        print(f'Asking {server_name} ({server_ip})...', end='')
+        raw_reply = try_send_request(request, server_name)
+        print('[OK]')
         reply = DNSRecord.parse(raw_reply)
         if (reply.auth != []):
             server_name, _server_ip = get_nameserver_info(reply)
             if _server_ip: 
                 server_ip = _server_ip
             else:
-                get_ip_from_url(server_name)
+                get_ip_from_url(server_name, mode)
         if (reply.rr != []):
             reply_rr = (reply.rr).copy()
+            _cname_rr = None
+            is_cname = True
             for rr in reply_rr:
                 if rr.rtype == QTYPE.CNAME:
-                    _reply = get_ip_from_url(str(rr.rdata))
-                    for _rr in _reply.rr:
-                        reply.add_answer(_rr)
+                    _cname_rr = rr
+                elif rr.rtype == QTYPE.A:
+                    is_cname = False
+                    break
+            if is_cname:
+                _reply = get_ip_from_url(str(_cname_rr.rdata), mode)
+                reply.rr += _reply.rr
             break
     return reply
 
@@ -53,6 +71,7 @@ def main(args):
     global passed_server
     cache = {}
     while True:
+        passed_server = []
         data, addr = client_sock.recvfrom(1024)
         query = DNSRecord.parse(data)
         query_url = str(query.q.qname)
@@ -60,17 +79,12 @@ def main(args):
             final_msg = query.reply()
             final_msg.rr = cache[query_url]
         else:
-            if args.mode == 0:
-                reply = query.send(PUBLIC_DNS_SERVER)
-                final_msg = DNSRecord.parse(reply)
-                passed_server.append(PUBLIC_DNS_SERVER)
-            elif args.mode == 1:
-                reply = get_ip_from_url(query_url)
-                final_msg = query.reply()
-                final_msg.rr = reply.rr
+            reply = get_ip_from_url(query_url, args.mode)
+            final_msg = query.reply()
+            final_msg.rr = reply.rr
             cache[query_url] = final_msg.rr
-        print_passed_servers(passed_server)
-        passed_server = []
+        # print_passed_servers(passed_server)
+        print("="*20)
         client_sock.sendto(final_msg.pack(), addr)
 
 if __name__ == '__main__':
