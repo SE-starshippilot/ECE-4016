@@ -1,6 +1,6 @@
 import socket
 import argparse
-from dnslib import DNSRecord, RR, A, QTYPE
+from dnslib import DNSRecord, QTYPE
 
 LOCAL_DNS_SERVER = '127.0.0.1'
 LOCAL_DNS_PORT = 1234
@@ -26,14 +26,10 @@ def get_nameserver_info(reply:DNSRecord.reply):
 
 def get_ip_from_url(domain_name:str, mode=1):
     global passed_server
-    domains = domain_name.split('.')
     server_name = ROOT_DNS_SERVER 
     server_ip = ROOT_DNS_SERVER
-    query_domain = ''   # query domain name
-    for domain in domains[::-1]:
-        if domain == '': continue # skip empty domain
-        query_domain = f'{domain}.' + query_domain
-        request = DNSRecord.question(query_domain)
+    while True:
+        request = DNSRecord.question(domain_name)
         passed_server.append(server_ip)
         raw_reply = request.send(server_name)
         reply = DNSRecord.parse(raw_reply)
@@ -43,13 +39,14 @@ def get_ip_from_url(domain_name:str, mode=1):
                 server_ip = _server_ip
             else:
                 get_ip_from_url(server_name)
-        if ((reply.auth == []) and (reply.rr != [])):
+        if (reply.rr != []):
             reply_rr = (reply.rr).copy()
             for rr in reply_rr:
                 if rr.rtype == QTYPE.CNAME:
                     _reply = get_ip_from_url(str(rr.rdata))
                     for _rr in _reply.rr:
                         reply.add_answer(_rr)
+            break
     return reply
 
 def main(args):
