@@ -1,4 +1,3 @@
-import time
 import socket
 import argparse
 from dnslib import DNSRecord, QTYPE
@@ -32,7 +31,6 @@ def try_send_request(request, server_name, trials=3):
             return request.send(server_name, timeout=1)
         except socket.timeout:
             trial += 1
-            print(f'[TIMEOUT ({trial}/{trials})]')
 
 def get_ip_from_url(domain_name:str, mode:int):
     global passed_server
@@ -41,9 +39,7 @@ def get_ip_from_url(domain_name:str, mode:int):
     while True:
         request = DNSRecord.question(domain_name)
         passed_server.append(server_ip)
-        print(f'Asking {server_name} ({server_ip})...', end='')
         raw_reply = try_send_request(request, server_name)
-        print('[OK]')
         reply = DNSRecord.parse(raw_reply)
         if (reply.auth != []):
             server_name, _server_ip = get_nameserver_info(reply)
@@ -83,8 +79,7 @@ def main(args):
             final_msg = query.reply()
             final_msg.rr = reply.rr
             cache[query_url] = final_msg.rr
-        # print_passed_servers(passed_server)
-        print("="*20)
+        print_passed_servers(passed_server)
         client_sock.sendto(final_msg.pack(), addr)
 
 if __name__ == '__main__':
