@@ -1,3 +1,11 @@
+'''
+Author: tianhao 120090472@link.cuhk.edu.cn
+Date: 2023-09-23 23:11:56
+LastEditors: tianhao 120090472@link.cuhk.edu.cn
+LastEditTime: 2023-10-15 21:33:40
+FilePath: /A1_DNS/server.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
 import time
 import socket
 import argparse
@@ -23,7 +31,7 @@ def get_nameserver_info(reply:DNSRecord.reply):
     for ar in reply.ar:
         if ar.rtype == QTYPE.A:
             return str(ar.rname), str(ar.rdata)
-    return str(reply.auth[0].rdata), None
+    return str(reply.auth[0].rdata), str(reply.auth[0].rdata)
 
 def try_send_request(request, server_name, trials=10):
     trial = 0
@@ -46,10 +54,7 @@ def get_ip_from_url(domain_name:str, flag:int):
         reply = DNSRecord.parse(raw_reply)
         if (reply.auth != []):
             server_name, _server_ip = get_nameserver_info(reply)
-            if _server_ip: 
-                server_ip = _server_ip
-            else:
-                get_ip_from_url(server_name, flag)
+            server_ip = _server_ip
         if (reply.rr != []):
             reply_rr = (reply.rr).copy()
             _cname_rr = None # usually there won't be two cname records
