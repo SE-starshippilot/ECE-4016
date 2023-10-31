@@ -40,3 +40,7 @@ DNS server is listening on 127.0.0.1:1234
 #### 2. Fetching from Root server
 
 ![Screenshot 2023-10-02 at 23.02.17](/Users/shitianhao/Library/Application Support/typora-user-images/Screenshot 2023-10-02 at 23.02.17.png)
+
+#### 3. Implementation of Cache
+
+![image-20231007131702106](/Users/shitianhao/Library/Application Support/typora-user-images/image-20231007131702106.png)
