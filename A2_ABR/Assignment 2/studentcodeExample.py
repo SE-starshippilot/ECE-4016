@@ -1,15 +1,17 @@
 #Written by Nathan A-M =^)
 #Buffer-based implementation using 
 #A Buffer-based approach as a reference 
+import numpy as np
+from functools import partial
 
 bitrate = 0 #used to save previous bitrate
 
-def student_entrypoint(Measured_Bandwidth, Previous_Throughput, Buffer_Occupancy, Available_Bitrates, Video_Time, Chunk, Rebuffering_Time, Preferred_Bitrate ):
+def student_entrypoint(Measured_Bandwidth, Previous_Throughput, Buffer_Occupancy, Available_Bitrates, Video_Time, Chunk, Rebuffering_Time, Preferred_Bitrate):
     #student can do whatever they want from here going forward
     global bitrate
     R_i = list(Available_Bitrates.items())
-    R_i.sort(key=lambda tup: tup[1] , reverse=True)
-    bitrate = bufferbased(rate_prev=bitrate, buf_now= Buffer_Occupancy, r=Chunk['time']+1,R_i= R_i ) 
+    R_i.sort(key=lambda tup: tup[1] , reverse=True) # a list of tuples of (bitrate, size), sorted by size, largest to smallest
+    bitrate = BOLA_bufferbased(buf_now= Buffer_Occupancy, R_i= R_i) 
     return bitrate
 
 #helper function, to find the corresponding size of previous bitrate
@@ -29,7 +31,10 @@ def prevmatch(value, list_of_list):
         if value == e[1]:
             return e
 
-def bufferbased(rate_prev, buf_now, r, R_i , cu = 126):
+def util_func(chunk_size, min_size, buffer_size, V, gamma_p):
+    return (V*np.log(chunk_size/min_size, 2) + V*gamma_p - buffer_size) / chunk_size
+
+def BOLA_bufferbased(buf_now, R_i, V=0.93, gamma_p=5):
     '''
     Input: 
     rate_prev: The previously used video rate
@@ -41,53 +46,10 @@ def bufferbased(rate_prev, buf_now, r, R_i , cu = 126):
     Output: 
     Rate_next: The next video rate
     '''
-    
-    R_max = max(i[1] for i in R_i)
-    R_min = min(i[1] for i in R_i)
-    rate_prev = prevmatch(rate_prev,R_i)
-    
-    #set rate_plus to lowest reasonable rate
-    if rate_prev[1] == R_max:
-        rate_plus = R_max
-    else:
-        more_rate_prev = list(i[1] for i in R_i if i[1] > rate_prev[1])
-        if more_rate_prev == []:
-            rate_plus = rate_prev[1]
-        else: 
-            rate_plus = min(more_rate_prev)
-    
-    #set rate_min to highest reasonable rate
-    if rate_prev[1] == R_min:
-        rate_mins = R_min
-    else:
-        less_rate_prev= list(i[1] for i in R_i if i[1] < rate_prev[1])
-        if less_rate_prev == []:
-            rate_mins = rate_prev[1]
-        else: 
-            rate_mins = max(less_rate_prev)
-    
-    #Buffer based Algorithm 
-    if buf_now['time'] <= r: #1st check if buffer time is too small, set to R_min
-        rate_next = R_min
-        rate_next = match(R_min, R_i)[0]
-    elif buf_now['time'] >= (r + cu):  #too big, set R_max
-        rate_next = R_max
-        rate_next = match(R_max, R_i)[0]
-    elif buf_now['current'] >= rate_plus: #check if big enough get a different reasonable rate
-        less_buff_now= list(i[1] for i in R_i if i[1] < buf_now['current'])
-        if less_buff_now == []:
-            rate_next = rate_prev[0]
-        else: 
-            rate_next = max(less_buff_now)
-            rate_next = match(rate_next, R_i)[0]
-    elif buf_now['current'] <= rate_mins: #check if small enough for a different reasonable rate
-        more_buff_now= list(i[1] for i in R_i if i[1] > buf_now['current'])
-        if more_buff_now == []:
-            rate_next = rate_prev[0]
-        else: 
-            rate_next = min(more_buff_now)
-            rate_next = match(rate_next, R_i)[0]
-    else:
-        rate_next = rate_prev[0] #else give up and try again next time
-
+    bit_rates, chunk_sizes = np.array(R_i).T
+    curr_util_func = partial(util_func, min_size=chunk_sizes[-1], buffer_size=buf_now, V=V, gamma_p=gamma_p)
+    # calculate the utility function for each bit rate
+    util_funcs = np.vectorize(curr_util_func)(chunk_sizes)
+    # find the bit rate that maximizes the utility function
+    rate_next = bit_rates[np.argmax(util_funcs)]
     return rate_next
