@@ -14,31 +14,14 @@ def student_entrypoint(Measured_Bandwidth, prev_throughput, Buffer_Occupancy, Av
     bitrate = BOLA_finite(Buffer_Occupancy, R_i, Chunk, bitrate, prev_throughput) 
     return bitrate
 
-#helper function, to find the corresponding size of previous bitrate
-def match(value, list_of_list): 
-    for e in list_of_list:
-        if value == e[1]:
-            return e
-            
-#helper function, to find the corresponding size of previous bitrate
-#if there's was no previous assume that it was the highest possible value
-def prevmatch(value, list_of_list): 
-    for e in list_of_list:
-        if value == e[1]:
-            return e
-    value = max(i[1] for i in list_of_list)
-    for e in list_of_list:
-        if value == e[1]:
-            return e
-
-def util_func(chunk_size, visual_util, buffer_size, V, gamma_p):
-    return (V*visual_util + V*gamma_p - buffer_size) / chunk_size
-
 def get_prev_index(bitrates, target):
     indices = np.where(bitrates == target)[0]
     return indices[0] if indices.size>0 else len(bitrates)
 
-def BOLA_finite(buf_now, R_i, Chunk, prev_rate, prev_throughput, gamma_p=5):
+def util_func(chunk_size, visual_util, buffer_size, V, gamma_p):
+    return (V*visual_util + V*gamma_p - buffer_size) / chunk_size
+
+def BOLA_finite(buf_now, R_i, Chunk, prev_rate, prev_throughput, gamma_p=9):
     '''
     Input: 
     buf_now: The current buffer occupancy 
@@ -58,7 +41,7 @@ def BOLA_finite(buf_now, R_i, Chunk, prev_rate, prev_throughput, gamma_p=5):
     buffer_d_max = min(buffer_max, t_prime / chunk_duration)
     V_d = (buffer_d_max - 1) / (visual_utils[0] - 1)
     curr_util_func = np.vectorize(util_func)
-    curr_util_scores = curr_util_func(chunk_sizes, visual_utils, buf_now['size'] / int(R_i[0][0]), V_d, gamma_p)
+    curr_util_scores = curr_util_func(chunk_sizes, visual_utils, buf_now['time'], V_d, gamma_p)
     next_rate_index = np.argmax(curr_util_scores)
     prev_rate_index = get_prev_index(chunk_sizes, int(prev_rate))
     next_rate, prev_rate = int(R_i[next_rate_index][0]), int(prev_rate)
